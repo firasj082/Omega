@@ -118,6 +118,8 @@ export interface TreeNode {
   absolutePath: string;
   isDirectory: boolean;
   children: TreeNode[];
+  isExpanded: boolean;
+  isLoaded: boolean;        // false = children not yet fetched
   subProjectId: string | null;       // set if this node is a marked sub-project
   depth: number;                     // 0 = root
   existingRuleFiles: ExistingRuleFile[];
@@ -146,9 +148,14 @@ export interface GenerationPlan {
 export interface GenerationEntry {
   subProjectId: string;
   subProjectName: string;
-  outputPath: string;                // absolute path where the file will be written
+  rulesOutputPath: string;      // absolute path for rules file
+  mapOutputPath: string;        // absolute path for map file
   loadoutId: string;
   outputTarget: OutputTarget;
+  existingRulesFile: ExistingRuleFile | null;
+  existingMapFile: ExistingRuleFile | null;
+  rulesContent?: string;        // populated right before invocation
+  mapContent?: string;          // populated right before invocation
 }
 
 // ─── Editor Session ──────────────────────────────────────────────────────────
@@ -171,14 +178,15 @@ export type OutputTarget = "claude" | "cursor" | "cline";
 
 export interface OutputConfig {
   target: OutputTarget;
-  filename: string;
+  rulesFile: string;
+  mapFile: string;
   format: "markdown" | "plaintext";
 }
 
 export const OUTPUT_CONFIGS: Record<OutputTarget, OutputConfig> = {
-  claude: { target: "claude", filename: "CLAUDE.md", format: "markdown" },
-  cursor: { target: "cursor", filename: ".cursorrules", format: "plaintext" },
-  cline: { target: "cline", filename: ".clinerules", format: "markdown" },
+  claude: { target: "claude", rulesFile: "CLAUDE.md", mapFile: "CLAUDE_MAP.md", format: "markdown" },
+  cursor: { target: "cursor", rulesFile: ".cursorrules", mapFile: ".cursorrules_map", format: "plaintext" },
+  cline: { target: "cline", rulesFile: ".clinerules", mapFile: ".clinerules_map", format: "markdown" },
 };
 
 export const OUTPUT_TARGET_LABELS: Record<OutputTarget, string> = {

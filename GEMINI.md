@@ -34,6 +34,7 @@ This file defines the project's strict architecture, coding rules, and routing p
 - `src/utils/id.ts` — Nanoid generator wrapper.
 - `src/utils/detector.ts` — Folder scanner API bridge to Tauri.
 - `src/utils/ruleFileParser.ts` — Parses raw rule file content into RuleBlock arrays.
+- `src/utils/generation.ts` — Pure generation plan builder.
 
 #### Pages (`src/pages/`)
 - `src/pages/Home.tsx` — Folder picker, detection results, and monorepo workspace picker.
@@ -43,6 +44,9 @@ This file defines the project's strict architecture, coding rules, and routing p
 #### Stores (`src/store/`)
 - `src/store/useProjectStore.ts` — Workspace tree state, sub-projects, node selection, generation strategies.
 - `src/store/useLoadoutStore.ts` — Persisted templates database.
+
+#### Contexts (`src/context/`)
+- `src/context/TreeContext.tsx` — React context for tree state and lazy-loading expansion control.
 
 #### Components (`src/components/`)
 - `src/components/ui/` — shadcn/ui components (badge, button, card, dialog, input, label, popover, select, separator, textarea).
@@ -70,6 +74,7 @@ This file defines the project's strict architecture, coding rules, and routing p
 - `src/writers/claudeWriter.ts` — Generates `CLAUDE.md`.
 - `src/writers/cursorWriter.ts` — Generates `.cursorrules`.
 - `src/writers/clineWriter.ts` — Generates `.clinerules`.
+- `src/writers/mapHelper.ts` — Helper for generating tiered directory mapping.
 
 ### Backend Stack (`src-tauri/`)
 - `src-tauri/tauri.conf.json` — Desktop settings (window sizes, productName, assets directory).

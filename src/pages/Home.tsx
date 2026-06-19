@@ -2,26 +2,28 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Loader2, ArrowRight } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { detectProject } from "@/utils/detector";
 import { useProjectStore } from "@/store/useProjectStore";
 import { ProjectTree } from "@/components/tree/ProjectTree";
 import { NodeDetailPanel } from "@/components/tree/NodeDetailPanel";
 import { GenerationPanel } from "@/components/generation/GenerationPanel";
+import { TreeProvider, useTree } from "@/context/TreeContext";
 import type { TreeNode, ExistingRuleFile } from "@/types";
 import { toast } from "sonner";
 
-export function Home() {
+function HomeContent() {
   const navigate = useNavigate();
-  const {
-    folderPath,
-    detection,
-    setFolder,
-    setDetection,
-    setSelectedNode,
-    markNodeAsProject,
-    unmarkNode,
-    openExistingFile,
-  } = useProjectStore();
+  const folderPath = useProjectStore((s) => s.folderPath);
+  const detection = useProjectStore((s) => s.detection);
+  const setFolder = useProjectStore((s) => s.setFolder);
+  const setDetection = useProjectStore((s) => s.setDetection);
+  const setSelectedNode = useProjectStore((s) => s.setSelectedNode);
+  const markNodeAsProject = useProjectStore((s) => s.markNodeAsProject);
+  const unmarkNode = useProjectStore((s) => s.unmarkNode);
+  const openExistingFile = useProjectStore((s) => s.openExistingFile);
+
+  const { setTree } = useTree();
 
   const [isDetecting, setIsDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,13 +32,15 @@ export function Home() {
   // Sync selectedNode when detection tree changes or resets
   useEffect(() => {
     if (!detection) {
+      setTree(null);
       setSelectedNodeLocal(null);
       setSelectedNode(null);
     } else {
+      setTree(detection.tree);
       setSelectedNodeLocal(detection.tree);
       setSelectedNode(detection.tree.absolutePath);
     }
-  }, [detection, setSelectedNode]);
+  }, [detection, setSelectedNode, setTree]);
 
   const handlePickFolder = async () => {
     setError(null);
@@ -70,10 +74,19 @@ export function Home() {
     setSelectedNode(node.absolutePath);
   };
 
-  const handleOpenExistingFile = (file: ExistingRuleFile, subProjectId: string) => {
-    openExistingFile(file, subProjectId);
-    toast.success(`Loaded existing ${file.filename} in editor.`);
-    navigate("/editor");
+  const handleOpenExistingFile = async (file: ExistingRuleFile, subProjectId: string) => {
+    try {
+      // Lazy load rules file content
+      const content = await invoke<string>("read_rule_file_content", {
+        absolutePath: file.absolutePath,
+      });
+      const fileWithContent = { ...file, content };
+      openExistingFile(fileWithContent, subProjectId);
+      toast.success(`Loaded existing ${file.filename} in editor.`);
+      navigate("/editor");
+    } catch (err) {
+      toast.error(`Failed to load file content: ${err}`);
+    }
   };
 
   const handleMarkAsProject = (node: TreeNode) => {
@@ -145,7 +158,6 @@ export function Home() {
         {/* Left Side: Project Tree Explorer */}
         <div className="w-[45%] h-full">
           <ProjectTree
-            tree={detection.tree}
             onNodeClick={handleNodeClick}
             onMarkAsProject={handleMarkAsProject}
             onUnmarkProject={unmarkNode}
@@ -176,5 +188,13 @@ export function Home() {
       {/* Batch Generator Panel */}
       <GenerationPanel />
     </div>
+  );
+}
+
+export function Home() {
+  return (
+    <TreeProvider>
+      <HomeContent />
+    </TreeProvider>
   );
 }

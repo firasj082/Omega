@@ -204,21 +204,26 @@ export function NodeDetailPanel({ node, onOpenExistingFile }: NodeDetailPanelPro
               >
                 {Object.entries(OUTPUT_TARGET_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
-                    {label} ({OUTPUT_CONFIGS[value as OutputTarget].filename})
+                    {label} ({OUTPUT_CONFIGS[value as OutputTarget].rulesFile})
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Output File Preview Path */}
-            <div className="bg-[var(--color-muted)] border border-[var(--color-border)] rounded-md p-2.5 text-xs text-[var(--color-muted-foreground)]">
+            {/* Output File Preview Paths */}
+            <div className="bg-[var(--color-muted)] border border-[var(--color-border)] rounded-md p-2.5 text-xs text-[var(--color-muted-foreground)] space-y-1">
               <span className="font-semibold block text-[var(--color-foreground)]">
-                Output Target:
+                Output Files:
               </span>
-              <span className="font-mono mt-1 block select-all">
-                {subProject.relativePath
-                  ? `${subProject.relativePath}/${OUTPUT_CONFIGS[subProject.outputTarget].filename}`
-                  : OUTPUT_CONFIGS[subProject.outputTarget].filename}
+              <span className="font-mono block select-all">
+                📄 {subProject.relativePath
+                  ? `${subProject.relativePath}/${OUTPUT_CONFIGS[subProject.outputTarget].rulesFile}`
+                  : OUTPUT_CONFIGS[subProject.outputTarget].rulesFile}
+              </span>
+              <span className="font-mono block select-all text-[var(--color-muted-foreground)]">
+                🗺️ {subProject.relativePath
+                  ? `${subProject.relativePath}/${OUTPUT_CONFIGS[subProject.outputTarget].mapFile}`
+                  : OUTPUT_CONFIGS[subProject.outputTarget].mapFile}
               </span>
             </div>
           </div>

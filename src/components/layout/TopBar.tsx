@@ -43,7 +43,7 @@ export function TopBar() {
       </div>
       <div className="flex items-center gap-3">
         <span className="text-xs text-[var(--color-muted-foreground)]">
-          Output: {config.filename}
+          Output: {config.rulesFile}
         </span>
         <Select
           value={outputTarget}

@@ -8,8 +8,6 @@ import type {
   TreeNode,
   ExistingRuleFile,
   EditorSession,
-  GenerationPlan,
-  GenerationEntry,
   ProjectType,
 } from "@/types";
 import { DEFAULT_BLOCK_TITLES, OUTPUT_CONFIGS } from "@/types";
@@ -23,9 +21,7 @@ interface ProjectStore {
   outputTarget: OutputTarget;
   editorBlocks: RuleBlock[];
 
-  // New fields
   subProjects: SubProject[];
-  tree: TreeNode | null;
   selectedNodePath: string | null;
   isMonorepo: boolean;
   editorSession: EditorSession | null;
@@ -40,8 +36,6 @@ interface ProjectStore {
   removeBlock: (id: string) => void;
   reorderBlocks: (activeId: string, overId: string) => void;
 
-  // New actions
-  setTree: (tree: TreeNode) => void;
   setSubProjects: (subProjects: SubProject[]) => void;
   setSelectedNode: (path: string | null) => void;
   markNodeAsProject: (node: TreeNode, projectType: ProjectType) => void;
@@ -50,13 +44,12 @@ interface ProjectStore {
   setSubProjectLoadout: (id: string, loadoutId: string | null) => void;
   setSubProjectTarget: (id: string, target: OutputTarget) => void;
   setSubProjectIncluded: (id: string, included: boolean) => void;
-  buildGenerationPlan: () => GenerationPlan;
 
   // Editor Session actions
   openExistingFile: (file: ExistingRuleFile, subProjectId: string) => void;
   closeEditorSession: () => void;
   setSessionBlocks: (blocks: RuleBlock[]) => void;
-  markSessionDirty: () => void;
+  setSessionDirty: (isDirty: boolean) => void;
   saveSessionSuccess: (newContent: string) => void;
 }
 
@@ -64,30 +57,14 @@ function recalculateOrder(blocks: RuleBlock[]): RuleBlock[] {
   return blocks.map((block, index) => ({ ...block, order: index }));
 }
 
-function areBlocksEqual(a: RuleBlock[], b: RuleBlock[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (
-      a[i].type !== b[i].type ||
-      a[i].title !== b[i].title ||
-      a[i].content !== b[i].content
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export const useProjectStore = create<ProjectStore>((set, get) => ({
+export const useProjectStore = create<ProjectStore>((set) => ({
   folderPath: null,
   detection: null,
   activeLoadoutId: null,
   outputTarget: "cursor",
   editorBlocks: [],
 
-  // New fields initial values
   subProjects: [],
-  tree: null,
   selectedNodePath: null,
   isMonorepo: false,
   editorSession: null,
@@ -98,7 +75,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({
       detection: result,
       subProjects: result.subProjects,
-      tree: result.tree,
       isMonorepo: result.isMonorepo,
     }),
 
@@ -111,11 +87,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => {
       let nextSession = state.editorSession;
       if (nextSession) {
-        const sourceBlocks = nextSession.sourceFile
-          ? parseRuleFileToBlocks(nextSession.sourceFile.content, nextSession.sourceFile.outputTarget)
-          : [];
-        const isDirty = !areBlocksEqual(ordered, sourceBlocks);
-        nextSession = { ...nextSession, blocks: ordered, isDirty };
+        nextSession = { ...nextSession, blocks: ordered };
       }
       return { editorBlocks: ordered, editorSession: nextSession };
     });
@@ -129,11 +101,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       let nextSession = state.editorSession;
       if (nextSession) {
-        const sourceBlocks = nextSession.sourceFile
-          ? parseRuleFileToBlocks(nextSession.sourceFile.content, nextSession.sourceFile.outputTarget)
-          : [];
-        const isDirty = !areBlocksEqual(updated, sourceBlocks);
-        nextSession = { ...nextSession, blocks: updated, isDirty };
+        nextSession = { ...nextSession, blocks: updated };
       }
 
       return {
@@ -155,11 +123,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       let nextSession = state.editorSession;
       if (nextSession) {
-        const sourceBlocks = nextSession.sourceFile
-          ? parseRuleFileToBlocks(nextSession.sourceFile.content, nextSession.sourceFile.outputTarget)
-          : [];
-        const isDirty = !areBlocksEqual(updated, sourceBlocks);
-        nextSession = { ...nextSession, blocks: updated, isDirty };
+        nextSession = { ...nextSession, blocks: updated };
       }
 
       return {
@@ -176,11 +140,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       let nextSession = state.editorSession;
       if (nextSession) {
-        const sourceBlocks = nextSession.sourceFile
-          ? parseRuleFileToBlocks(nextSession.sourceFile.content, nextSession.sourceFile.outputTarget)
-          : [];
-        const isDirty = !areBlocksEqual(updated, sourceBlocks);
-        nextSession = { ...nextSession, blocks: updated, isDirty };
+        nextSession = { ...nextSession, blocks: updated };
       }
 
       return {
@@ -202,11 +162,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       let nextSession = state.editorSession;
       if (nextSession) {
-        const sourceBlocks = nextSession.sourceFile
-          ? parseRuleFileToBlocks(nextSession.sourceFile.content, nextSession.sourceFile.outputTarget)
-          : [];
-        const isDirty = !areBlocksEqual(updated, sourceBlocks);
-        nextSession = { ...nextSession, blocks: updated, isDirty };
+        nextSession = { ...nextSession, blocks: updated };
       }
 
       return {
@@ -214,9 +170,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         editorSession: nextSession,
       };
     }),
-
-  // New actions implementations
-  setTree: (tree) => set({ tree }),
 
   setSubProjects: (subProjects) => set({ subProjects }),
 
@@ -227,7 +180,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const exists = state.subProjects.some(
         (sp) => sp.absolutePath === node.absolutePath
       );
-      if (exists) return state;
+      if (exists) return {};
 
       const id = `subproj-manual-${Date.now()}`;
       const newSubProject: SubProject = {
@@ -246,19 +199,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         editingExistingFile: null,
       };
 
-      const updateTreeNode = (n: TreeNode): TreeNode => {
-        if (n.absolutePath === node.absolutePath) {
-          return { ...n, subProjectId: id };
-        }
-        if (n.children) {
-          return { ...n, children: n.children.map(updateTreeNode) };
-        }
-        return n;
-      };
-
       return {
         subProjects: [...state.subProjects, newSubProject],
-        tree: state.tree ? updateTreeNode(state.tree) : null,
       };
     }),
 
@@ -267,23 +209,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const subProj = state.subProjects.find(
         (sp) => sp.relativePath === relativePath
       );
-      if (!subProj) return state;
-
-      const updateTreeNode = (n: TreeNode): TreeNode => {
-        if (n.relativePath === relativePath) {
-          return { ...n, subProjectId: null };
-        }
-        if (n.children) {
-          return { ...n, children: n.children.map(updateTreeNode) };
-        }
-        return n;
-      };
+      if (!subProj) return {};
 
       return {
         subProjects: state.subProjects.filter(
           (sp) => sp.relativePath !== relativePath
         ),
-        tree: state.tree ? updateTreeNode(state.tree) : null,
       };
     }),
 
@@ -315,32 +246,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ),
     })),
 
-  buildGenerationPlan: () => {
-    const { subProjects } = get();
-    const entries: GenerationEntry[] = subProjects
-      .filter((sp) => sp.included && sp.assignedLoadoutId !== null)
-      .map((sp) => {
-        const config = OUTPUT_CONFIGS[sp.outputTarget];
-        const outputPath = `${sp.absolutePath}/${config.filename}`;
-        return {
-          subProjectId: sp.id,
-          subProjectName: sp.name,
-          outputPath,
-          loadoutId: sp.assignedLoadoutId!,
-          outputTarget: sp.outputTarget,
-          content: "", // Content will be populated right before invocation by the frontend using writers
-        };
-      });
-
-    return {
-      strategy: "per-subproject",
-      entries,
-    };
-  },
-
   // Editor Session implementations
   openExistingFile: (file, subProjectId) => {
     const blocks = parseRuleFileToBlocks(file.content, file.outputTarget);
+    
+    // Auto-inject routing map rule if missing!
+    const mapFile = OUTPUT_CONFIGS[file.outputTarget].mapFile;
+    const hasMapRef = blocks.some(
+      (b) => b.content.includes(mapFile) || b.title.toLowerCase().includes("map")
+    );
+    if (!hasMapRef) {
+      blocks.push({
+        id: generateId(),
+        type: "section",
+        title: "Routing Map Reference",
+        content: `Always consult the project directory routing map in ${mapFile} before creating, renaming, or refactoring files to maintain codebase layout consistency.`,
+        order: blocks.length,
+      });
+    }
+
     set({
       editorSession: {
         subProjectId,
@@ -367,11 +291,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => {
       let nextSession = state.editorSession;
       if (nextSession) {
-        const sourceBlocks = nextSession.sourceFile
-          ? parseRuleFileToBlocks(nextSession.sourceFile.content, nextSession.sourceFile.outputTarget)
-          : [];
-        const isDirty = !areBlocksEqual(ordered, sourceBlocks);
-        nextSession = { ...nextSession, blocks: ordered, isDirty };
+        nextSession = { ...nextSession, blocks: ordered };
       }
       return {
         editorBlocks: ordered,
@@ -380,14 +300,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     });
   },
 
-  markSessionDirty: () =>
+  setSessionDirty: (isDirty) =>
     set((state) => {
-      if (!state.editorSession || !state.editorSession.sourceFile) return state;
-      const sourceBlocks = parseRuleFileToBlocks(
-        state.editorSession.sourceFile.content,
-        state.editorSession.sourceFile.outputTarget
-      );
-      const isDirty = !areBlocksEqual(state.editorBlocks, sourceBlocks);
+      if (!state.editorSession) return {};
       return {
         editorSession: {
           ...state.editorSession,
@@ -398,7 +313,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   saveSessionSuccess: (newContent) =>
     set((state) => {
-      if (!state.editorSession || !state.editorSession.sourceFile) return state;
+      if (!state.editorSession || !state.editorSession.sourceFile) return {};
       const updatedSource = {
         ...state.editorSession.sourceFile,
         content: newContent,

@@ -1,14 +1,13 @@
-import { useState } from "react";
-import { ChevronRight, ChevronDown, Folder, FileText, Plus, X } from "lucide-react";
+import { ChevronRight, ChevronDown, Folder, FileText, Plus, X, Loader2 } from "lucide-react";
 import type { TreeNode as TreeNodeType, ExistingRuleFile } from "@/types";
 import { PROJECT_TYPE_LABELS } from "@/types";
 import { cn } from "@/lib/utils";
-
+import { useState } from "react";
 import { useProjectStore } from "@/store/useProjectStore";
+import { useTree } from "@/context/TreeContext";
 
 interface TreeNodeProps {
   node: TreeNodeType;
-  depth: number;
   onNodeClick: (node: TreeNodeType) => void;
   onMarkAsProject: (node: TreeNodeType) => void;
   onUnmarkProject: (relativePath: string) => void;
@@ -17,23 +16,33 @@ interface TreeNodeProps {
 
 export function TreeNode({
   node,
-  depth,
   onNodeClick,
   onMarkAsProject,
   onUnmarkProject,
   onOpenExistingFile,
 }: TreeNodeProps) {
-  const [isExpanded, setIsExpanded] = useState(depth === 0);
+  const { expandNode, collapseNode } = useTree();
+  const [isExpanding, setIsExpanding] = useState(false);
   const subProjects = useProjectStore((s) => s.subProjects);
   const selectedNodePath = useProjectStore((s) => s.selectedNodePath);
   const isSelected = node.absolutePath === selectedNodePath;
+
   const subProject = node.subProjectId
     ? subProjects.find((sp) => sp.id === node.subProjectId) || null
     : null;
 
-  const handleToggleExpand = (e: React.MouseEvent) => {
+  const handleToggleExpand = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsExpanded(!isExpanded);
+    if (node.isExpanded) {
+      collapseNode(node.absolutePath);
+    } else {
+      setIsExpanding(true);
+      try {
+        await expandNode(node.absolutePath);
+      } finally {
+        setIsExpanding(false);
+      }
+    }
   };
 
   const handleRowClick = () => {
@@ -53,7 +62,7 @@ export function TreeNode({
       {/* Node Row */}
       <div
         onClick={handleRowClick}
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        style={{ paddingLeft: `${node.depth * 12 + 8}px` }}
         className={cn(
           "group flex items-center gap-2 py-1.5 px-2 text-sm cursor-pointer rounded transition-colors hover:bg-[var(--color-accent)]",
           isSelected && "bg-[var(--color-accent)] font-semibold",
@@ -65,10 +74,13 @@ export function TreeNode({
         {node.isDirectory ? (
           <button
             onClick={handleToggleExpand}
+            disabled={isExpanding}
             className="flex h-4 w-4 items-center justify-center rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
           >
-            {node.children.length > 0 ? (
-              isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />
+            {isExpanding ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : !node.isLoaded || node.children.length > 0 ? (
+              node.isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />
             ) : (
               <span className="w-3 h-3" />
             )}
@@ -98,7 +110,6 @@ export function TreeNode({
             key={file.filename}
             onClick={(e) => {
               e.stopPropagation();
-              // Open file in editor (if it's a subproject, pass its ID, otherwise root ID or register first)
               onOpenExistingFile(file, subProject?.id || "root");
             }}
             title={`Last modified: ${file.lastModified} · ${(file.sizeBytes / 1024).toFixed(1)} KB`}
@@ -144,23 +155,6 @@ export function TreeNode({
           </div>
         )}
       </div>
-
-      {/* Render children recursively */}
-      {node.isDirectory && isExpanded && node.children && node.children.length > 0 && (
-        <div className="flex flex-col">
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.absolutePath}
-              node={child}
-              depth={depth + 1}
-              onNodeClick={onNodeClick}
-              onMarkAsProject={onMarkAsProject}
-              onUnmarkProject={onUnmarkProject}
-              onOpenExistingFile={onOpenExistingFile}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
