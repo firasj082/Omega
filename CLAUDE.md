@@ -12,6 +12,20 @@
 
 ---
 
+# Omega — Rules
+
+> **File Map**: See [CLAUDE_MAP.md](./CLAUDE_MAP.md) before navigating this project.
+> Update CLAUDE_MAP.md whenever a file is added or removed.
+
+---
+
+# Omega — Rules
+
+> **File Map**: See [CLAUDE_MAP.md](./CLAUDE_MAP.md) before navigating this project.
+> Update CLAUDE_MAP.md whenever a file is added or removed.
+
+---
+
 ## Project Overview
 
 This is a React application built with Vite and TypeScript. Components are function-based with hooks.

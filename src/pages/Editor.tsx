@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OUTPUT_CONFIGS } from "@/types";
 import { renderOutput } from "@/writers";
-import { writeRuleFile } from "@/utils/detector";
+import { writeRuleFile, detectProject } from "@/utils/detector";
 import { generateId } from "@/utils/id";
 import { parseRuleFileToBlocks } from "@/utils/ruleFileParser";
 import type { Loadout, RuleBlock, ExistingRuleFile } from "@/types";
@@ -104,6 +104,14 @@ export function Editor() {
 
       if (editorSession && editorSession.mode === "editing-existing") {
         saveSessionSuccess(content);
+      }
+
+      // Rescan project folder to sync UI state with disk
+      try {
+        const result = await detectProject(folderPath);
+        useProjectStore.getState().setDetection(result);
+      } catch (scanErr) {
+        console.error("Failed to rescan after editor write:", scanErr);
       }
     } catch (err) {
       const message =

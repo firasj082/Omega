@@ -4,7 +4,7 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { useLoadoutStore } from "@/store/useLoadoutStore";
 import { renderRules } from "@/writers";
 import { buildGenerationPlan } from "@/utils/generation";
-import { generateFileMap } from "@/utils/detector";
+import { generateFileMap, detectProject } from "@/utils/detector";
 import { ReviewModal } from "./ReviewModal";
 import type { GenerationEntry, OutputTarget } from "@/types";
 import { OUTPUT_CONFIGS } from "@/types";
@@ -157,18 +157,23 @@ export function GenerationPanel() {
             }
             rulesContent = renderRules(entry.outputTarget, mergedBlocks, entry.subProjectName, mapFile);
           }
-          // Generate map file via Rust full-recursive scan
+          // Generate map file via Rust full-recursive scan (dry run, do not write to disk)
           let mapContent = "";
           if (sp) {
             try {
-              mapContent = await generateFileMap(sp.absolutePath);
+              mapContent = await generateFileMap(sp.absolutePath, undefined, false);
             } catch (mapErr) {
               toast.error(`Map generation failed for ${entry.subProjectName}: ${mapErr}`);
             }
           }
 
           return {
-            ...entry,
+            subProjectId: entry.subProjectId,
+            subProjectName: entry.subProjectName,
+            rulesOutputPath: entry.rulesOutputPath,
+            mapOutputPath: entry.mapOutputPath,
+            loadoutId: entry.loadoutId,
+            outputTarget: entry.outputTarget,
             rulesContent,
             mapContent,
           };
@@ -197,6 +202,17 @@ export function GenerationPanel() {
       } else {
         toast.success("All rules and map files generated successfully!");
       }
+
+      // Rescan project folder to sync UI state with disk
+      const folderPath = useProjectStore.getState().folderPath;
+      if (folderPath) {
+        try {
+          const result = await detectProject(folderPath);
+          useProjectStore.getState().setDetection(result);
+        } catch (scanErr) {
+          console.error("Failed to rescan after generation:", scanErr);
+        }
+      }
     } catch (e) {
       toast.error(`Generation failed: ${e}`);
     } finally {
@@ -210,7 +226,12 @@ export function GenerationPanel() {
       const results = await invoke<WriteResult[]>("write_rule_files", {
         entries: [
           {
-            ...entry,
+            subProjectId: entry.subProjectId,
+            subProjectName: entry.subProjectName,
+            rulesOutputPath: entry.rulesOutputPath,
+            mapOutputPath: entry.mapOutputPath,
+            loadoutId: entry.loadoutId,
+            outputTarget: entry.outputTarget,
             rulesContent,
             mapContent,
           },
@@ -232,6 +253,17 @@ export function GenerationPanel() {
       const success = res.rulesSuccess && res.mapSuccess;
       if (success) {
         toast.success(`Generated rules and map files for ${entry.subProjectName}`);
+        
+        // Rescan project folder to sync UI state with disk
+        const folderPath = useProjectStore.getState().folderPath;
+        if (folderPath) {
+          try {
+            const result = await detectProject(folderPath);
+            useProjectStore.getState().setDetection(result);
+          } catch (scanErr) {
+            console.error("Failed to rescan after write:", scanErr);
+          }
+        }
       } else {
         const errorMsg = [res.rulesError, res.mapError].filter(Boolean).join(" | ");
         toast.error(`Failed to write files for ${entry.subProjectName}: ${errorMsg}`);

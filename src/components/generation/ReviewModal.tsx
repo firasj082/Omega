@@ -59,9 +59,17 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
   const entry = entries[currentIndex];
   const sp = subProjects.find((p) => p.id === entry?.subProjectId);
 
+  // Extract primitive properties to stabilize useEffect dependency arrays
+  const subProjectId = entry?.subProjectId;
+  const outputTarget = entry?.outputTarget;
+  const loadoutId = entry?.loadoutId;
+  const subProjectName = entry?.subProjectName;
+  const absolutePath = sp?.absolutePath;
+  const existingRuleFilesJson = JSON.stringify(sp?.existingRuleFiles);
+
   // 1. Fetch existing file contents from disk on index change
   useEffect(() => {
-    if (!entry || !sp) return;
+    if (!subProjectId || !absolutePath) return;
 
     const loadExisting = async () => {
       setExistingRulesContent(null);
@@ -69,8 +77,10 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
       setRulesSourceFilename(null);
       setMapSourceFilename(null);
 
-      const rulesFile = OUTPUT_CONFIGS[entry.outputTarget].rulesFile;
-      const mapFile = OUTPUT_CONFIGS[entry.outputTarget].mapFile;
+      if (!sp) return;
+
+      const rulesFile = OUTPUT_CONFIGS[outputTarget].rulesFile;
+      const mapFile = OUTPUT_CONFIGS[outputTarget].mapFile;
 
       const sameRules = sp.existingRuleFiles.find((f) => f.filename === rulesFile);
       const otherRules = sp.existingRuleFiles.find(
@@ -105,24 +115,24 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
     };
 
     loadExisting();
-  }, [currentIndex, entry, sp]);
+  }, [currentIndex, subProjectId, absolutePath, outputTarget, existingRuleFilesJson]);
 
   // 2. Perform merge & inject routing rule, then initialize drafts
   useEffect(() => {
-    if (!entry) return;
+    if (!subProjectId) return;
 
     let active = true;
 
-    const loadout = loadouts.find((l) => l.id === entry.loadoutId);
+    const loadout = loadouts.find((l) => l.id === loadoutId);
     const templateBlocks = loadout ? loadout.blocks : [];
-    const mapFile = OUTPUT_CONFIGS[entry.outputTarget].mapFile;
+    const mapFile = OUTPUT_CONFIGS[outputTarget].mapFile;
 
     // Rules Content Merge
     let rulesInit = "";
     if (existingRulesContent !== null) {
       const sourceTarget = rulesSourceFilename 
         ? inferTargetFromFilename(rulesSourceFilename) as OutputTarget
-        : entry.outputTarget;
+        : outputTarget;
 
       const existingBlocks = parseRuleFileToBlocks(existingRulesContent, sourceTarget);
       const mergedBlocks = [...existingBlocks];
@@ -151,7 +161,7 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
         });
       }
 
-      rulesInit = renderRules(entry.outputTarget, mergedBlocks, entry.subProjectName, mapFile);
+      rulesInit = renderRules(outputTarget, mergedBlocks, subProjectName, mapFile);
     } else {
       const mergedBlocks = [...templateBlocks];
       const hasMapRef = mergedBlocks.some(
@@ -166,7 +176,7 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
           order: mergedBlocks.length,
         });
       }
-      rulesInit = renderRules(entry.outputTarget, mergedBlocks, entry.subProjectName, mapFile);
+      rulesInit = renderRules(outputTarget, mergedBlocks, subProjectName, mapFile);
     }
 
     if (active) {
@@ -177,9 +187,9 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
     // Map Content — use Rust full-recursive scan (async)
     const loadMap = async () => {
       setIsLoadingMap(true);
-      if (sp) {
+      if (absolutePath) {
         try {
-          const rustMap = await generateFileMap(sp.absolutePath);
+          const rustMap = await generateFileMap(absolutePath, undefined, false);
           if (active) {
             setDraftMapContent(rustMap);
             setGeneratedMapContent(rustMap);
@@ -208,7 +218,7 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
     return () => {
       active = false;
     };
-  }, [entry, loadouts, sp, existingRulesContent, existingMapContent, rulesSourceFilename]);
+  }, [subProjectId, outputTarget, loadoutId, subProjectName, absolutePath, existingRulesContent, rulesSourceFilename, loadouts]);
 
   // Reset manual editing when changing index or active tab
   useEffect(() => {

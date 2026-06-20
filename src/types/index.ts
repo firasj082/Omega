@@ -14,6 +14,13 @@ export interface RuleBlock {
   order: number;
 }
 
+export interface MapEntryUpdate {
+  projectRoot: string;
+  filePath: string;
+  description?: string;
+  tags?: string[];
+}
+
 export const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
   section: "Section",
   freeform: "Freeform",
