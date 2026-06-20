@@ -83,5 +83,6 @@ This file defines the project's strict architecture, coding rules, and routing p
 - `src-tauri/src/lib.rs` — Plugin setups and command registration.
 - `src-tauri/src/commands/mod.rs` — Command modules registration.
 - `src-tauri/src/commands/detector.rs` — Project detection engine and path tree builders.
+- `src-tauri/src/commands/file_map.rs` — High-performance recursive file map generator.
 - `src-tauri/src/commands/writer.rs` — Disk files generator.
 

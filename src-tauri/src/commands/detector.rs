@@ -634,3 +634,16 @@ pub fn expand_tree_node(
 pub fn read_rule_file_content(absolute_path: String) -> Result<String, String> {
     fs::read_to_string(&absolute_path).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_omega_project() {
+        let result = detect_project("c:\\Users\\firas\\Projects\\Omega".to_string()).unwrap();
+        println!("Monorepo: {}", result.is_monorepo);
+        println!("Subprojects: {:?}", result.sub_projects.iter().map(|sp| (&sp.name, &sp.project_type)).collect::<Vec<_>>());
+    }
+}
+

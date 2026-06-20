@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { GenerationEntry, OutputTarget } from "@/types";
-import { renderRules, renderMap } from "@/writers";
+import { renderRules } from "@/writers";
+import { generateFileMap } from "@/utils/detector";
 import { useLoadoutStore } from "@/store/useLoadoutStore";
 import { useProjectStore } from "@/store/useProjectStore";
-import { useTree } from "@/context/TreeContext";
-import { X, ChevronLeft, ChevronRight, FileCheck, Eye } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, FileCheck, Eye, Loader2 } from "lucide-react";
 import { OUTPUT_CONFIGS } from "@/types";
 import { cn } from "@/lib/utils";
 import { generateId } from "@/utils/id";
 import { parseRuleFileToBlocks } from "@/utils/ruleFileParser";
+import { toast } from "sonner";
 
 interface ReviewModalProps {
   entries: GenerationEntry[];
@@ -28,6 +29,7 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<"rules" | "map">("rules");
   const [isWriting, setIsWriting] = useState(false);
+  const [isLoadingMap, setIsLoadingMap] = useState(false);
   const [writeStatuses, setWriteStatuses] = useState<Record<string, "success" | "error" | null>>({});
   
   // Track viewed tabs per subproject
@@ -43,9 +45,16 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
   const [draftRulesContent, setDraftRulesContent] = useState("");
   const [draftMapContent, setDraftMapContent] = useState("");
 
+  // Revert reference cache for pure generated content
+  const [generatedRulesContent, setGeneratedRulesContent] = useState("");
+  const [generatedMapContent, setGeneratedMapContent] = useState("");
+
+  // Manual editing states
+  const [isEditing, setIsEditing] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const loadouts = useLoadoutStore((s) => s.loadouts);
   const subProjects = useProjectStore((s) => s.subProjects);
-  const { getNode } = useTree();
 
   const entry = entries[currentIndex];
   const sp = subProjects.find((p) => p.id === entry?.subProjectId);
@@ -102,10 +111,11 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
   useEffect(() => {
     if (!entry) return;
 
+    let active = true;
+
     const loadout = loadouts.find((l) => l.id === entry.loadoutId);
     const templateBlocks = loadout ? loadout.blocks : [];
     const mapFile = OUTPUT_CONFIGS[entry.outputTarget].mapFile;
-    const rulesFile = OUTPUT_CONFIGS[entry.outputTarget].rulesFile;
 
     // Rules Content Merge
     let rulesInit = "";
@@ -120,16 +130,16 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
       // Merge template blocks (excluding duplicates by title)
       templateBlocks.forEach((b) => {
         const exists = mergedBlocks.some(
-          (ex) => ex.title.trim().toLowerCase() === b.title.trim().toLowerCase()
+          (ex) => (ex.title || "").trim().toLowerCase() === (b.title || "").trim().toLowerCase()
         );
-        if (!exists && b.title.trim() !== "") {
+        if (!exists && (b.title || "").trim() !== "") {
           mergedBlocks.push({ ...b, id: generateId(), order: mergedBlocks.length });
         }
       });
 
       // Auto-inject routing map rule if missing
       const hasMapRef = mergedBlocks.some(
-        (b) => b.content.includes(mapFile) || b.title.toLowerCase().includes("map")
+        (b) => (b.content || "").includes(mapFile) || (b.title || "").toLowerCase().includes("map")
       );
       if (!hasMapRef) {
         mergedBlocks.push({
@@ -145,7 +155,7 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
     } else {
       const mergedBlocks = [...templateBlocks];
       const hasMapRef = mergedBlocks.some(
-        (b) => b.content.includes(mapFile) || b.title.toLowerCase().includes("map")
+        (b) => (b.content || "").includes(mapFile) || (b.title || "").toLowerCase().includes("map")
       );
       if (!hasMapRef) {
         mergedBlocks.push({
@@ -159,13 +169,51 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
       rulesInit = renderRules(entry.outputTarget, mergedBlocks, entry.subProjectName, mapFile);
     }
 
-    // Map Content
-    const node = sp ? getNode(sp.absolutePath) : null;
-    const mapContent = (sp && node) ? renderMap(entry.outputTarget, sp, node, rulesFile) : "";
+    if (active) {
+      setDraftRulesContent(rulesInit);
+      setGeneratedRulesContent(rulesInit);
+    }
 
-    setDraftRulesContent(rulesInit);
-    setDraftMapContent(mapContent);
-  }, [entry, loadouts, sp, getNode, existingRulesContent, existingMapContent, rulesSourceFilename]);
+    // Map Content — use Rust full-recursive scan (async)
+    const loadMap = async () => {
+      setIsLoadingMap(true);
+      if (sp) {
+        try {
+          const rustMap = await generateFileMap(sp.absolutePath);
+          if (active) {
+            setDraftMapContent(rustMap);
+            setGeneratedMapContent(rustMap);
+          }
+        } catch (mapErr) {
+          if (active) {
+            setDraftMapContent(`<!-- Map generation failed: ${mapErr} -->`);
+            setGeneratedMapContent(`<!-- Map generation failed: ${mapErr} -->`);
+          }
+        } finally {
+          if (active) {
+            setIsLoadingMap(false);
+          }
+        }
+      } else {
+        if (active) {
+          setDraftMapContent("");
+          setGeneratedMapContent("");
+          setIsLoadingMap(false);
+        }
+      }
+    };
+
+    loadMap();
+
+    return () => {
+      active = false;
+    };
+  }, [entry, loadouts, sp, existingRulesContent, existingMapContent, rulesSourceFilename]);
+
+  // Reset manual editing when changing index or active tab
+  useEffect(() => {
+    setIsEditing(false);
+  }, [currentIndex, activeTab]);
 
   // 3. Mark active tab as viewed
   useEffect(() => {
@@ -314,8 +362,10 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
                 : "border-transparent text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
             )}
           >
-            🗺️ Tiered Map ({mapFile})
-            {viewed.map ? (
+            🗺️ Routing Map ({mapFile})
+            {isLoadingMap ? (
+              <Loader2 className="h-3 w-3 animate-spin text-[var(--color-primary)]" />
+            ) : viewed.map ? (
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
             ) : (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" title="Requires viewing map file before write" />
@@ -328,6 +378,61 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
             </div>
           )}
         </div>
+
+        {showComparison && (
+          <div className="bg-[var(--color-muted)] border-b border-[var(--color-border)] px-4 py-2 flex items-center justify-between gap-2 text-xs">
+            <span className="text-[var(--color-muted-foreground)] font-semibold">
+              Conflict detected for {activeFilename}. Merge or choose content:
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setActiveDraft(existingContent || "");
+                  toast.success(`Loaded disk content into editor`);
+                }}
+                disabled={isEditing}
+                className="px-2.5 py-1 bg-[var(--color-border)] border border-[var(--color-border)] rounded hover:bg-[var(--color-muted-foreground)]/10 font-semibold disabled:opacity-40"
+              >
+                ← Keep Disk Content
+              </button>
+              <button
+                onClick={() => {
+                  const gen = activeTab === "rules" ? generatedRulesContent : generatedMapContent;
+                  setActiveDraft(gen);
+                  toast.success(`Loaded newly generated content`);
+                }}
+                disabled={isEditing}
+                className="px-2.5 py-1 bg-[var(--color-border)] border border-[var(--color-border)] rounded hover:bg-[var(--color-muted-foreground)]/10 font-semibold disabled:opacity-40"
+              >
+                → Use Generated Content
+              </button>
+              {isEditing ? (
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    toast.success("Manual edits confirmed.");
+                  }}
+                  className="px-2.5 py-1 bg-green-500 text-white rounded hover:bg-green-600 font-semibold"
+                >
+                  ✓ Confirm Edits
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsEditing(true);
+                    setTimeout(() => {
+                      textareaRef.current?.focus();
+                    }, 50);
+                    toast.info("Manual edit mode enabled. Focus shifted to textarea.");
+                  }}
+                  className="px-2.5 py-1 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] rounded hover:opacity-90 font-semibold"
+                >
+                  ✍ Edit Manually
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Code Comparison View */}
         <div className="flex-1 flex overflow-hidden bg-black text-xs font-mono leading-relaxed select-text">
@@ -346,12 +451,19 @@ export function ReviewModal({ entries, onClose, onWriteFile }: ReviewModalProps)
               <div className="w-1/2 flex flex-col p-4 overflow-auto">
                 <div className="text-[var(--color-muted-foreground)] border-b border-green-950 pb-2 mb-2 uppercase tracking-wider text-[10px] font-semibold flex items-center justify-between">
                   <span>New Merged Content ({activeFilename})</span>
-                  <span className="text-[9px] bg-green-950/50 text-green-400 px-1.5 py-0.5 rounded font-sans font-normal">Merged & Editable</span>
+                  <span className="text-[9px] bg-green-950/50 text-green-400 px-1.5 py-0.5 rounded font-sans font-normal">
+                    {isEditing ? "Editing..." : "Read-Only (Click Edit Manually)"}
+                  </span>
                 </div>
                 <textarea
+                  ref={textareaRef}
                   value={activeDraft}
                   onChange={(e) => setActiveDraft(e.target.value)}
-                  className="flex-1 w-full bg-transparent text-green-400 border-0 outline-none resize-none font-mono text-xs whitespace-pre leading-relaxed p-0 focus:ring-0 focus:outline-none"
+                  readOnly={!isEditing}
+                  className={cn(
+                    "flex-1 w-full bg-transparent border-0 outline-none resize-none font-mono text-xs whitespace-pre leading-relaxed p-0 focus:ring-0 focus:outline-none",
+                    isEditing ? "text-green-400" : "text-green-600/80"
+                  )}
                   placeholder="Type or edit rules content here..."
                 />
               </div>

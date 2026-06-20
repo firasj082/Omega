@@ -12,14 +12,16 @@ export function renderCursorRules(
 
   const rulesContent = sorted
     .map((block) => {
-      if (block.type === "freeform") return block.content.trim();
+      const content = block.content || "";
+      const title = block.title || "";
+      if (block.type === "freeform") return content.trim();
       if (block.type === "ignore-patterns") {
-        return `${block.title}:\n${block.content.trim()}`;
+        return `${title}:\n${content.trim()}`;
       }
       if (block.type === "file-structure") {
-        return `${block.title}:\n${block.content.trim()}`;
+        return `${title}:\n${content.trim()}`;
       }
-      return `${block.title}\n${block.content.trim()}`;
+      return `${title}\n${content.trim()}`;
     })
     .join("\n\n");
 

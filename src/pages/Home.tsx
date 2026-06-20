@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Loader2, ArrowRight } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { detectProject } from "@/utils/detector";
+import { detectProject, generateFileMap } from "@/utils/detector";
 import { useProjectStore } from "@/store/useProjectStore";
 import { ProjectTree } from "@/components/tree/ProjectTree";
 import { NodeDetailPanel } from "@/components/tree/NodeDetailPanel";
 import { GenerationPanel } from "@/components/generation/GenerationPanel";
 import { TreeProvider, useTree } from "@/context/TreeContext";
 import type { TreeNode, ExistingRuleFile } from "@/types";
+import { OUTPUT_CONFIGS } from "@/types";
 import { toast } from "sonner";
 
 function HomeContent() {
@@ -57,7 +58,53 @@ function HomeContent() {
       setIsDetecting(true);
 
       const result = await detectProject(selected);
-      setDetection(result);
+
+      // Generate missing map files upfront
+      const updatedSubProjects = await Promise.all(
+        result.subProjects.map(async (sp) => {
+          const mapFile = OUTPUT_CONFIGS[sp.outputTarget].mapFile;
+          const hasMapFile = sp.existingRuleFiles.some((f) => f.filename === mapFile);
+          if (!hasMapFile) {
+            try {
+              // Generate and write map file upfront
+              await generateFileMap(sp.absolutePath, mapFile);
+
+              // Create the new ExistingRuleFile metadata entry
+              const absolutePath = sp.absolutePath.replace(/\\/g, '/').endsWith('/')
+                ? `${sp.absolutePath}${mapFile}`
+                : `${sp.absolutePath}/${mapFile}`;
+              const relativePath = sp.relativePath
+                ? `${sp.relativePath.replace(/\\/g, '/')}/${mapFile}`
+                : mapFile;
+
+              const newFile: ExistingRuleFile = {
+                filename: mapFile,
+                absolutePath,
+                relativePath,
+                outputTarget: sp.outputTarget,
+                sizeBytes: 1024,
+                lastModified: new Date().toISOString(),
+                content: "",
+              };
+
+              return {
+                ...sp,
+                existingRuleFiles: [...sp.existingRuleFiles, newFile],
+              };
+            } catch (err) {
+              toast.error(`Failed to generate upfront routing map for ${sp.name}: ${err}`);
+            }
+          }
+          return sp;
+        })
+      );
+
+      // Set detection with patched subProjects
+      setDetection({
+        ...result,
+        subProjects: updatedSubProjects,
+      });
+
       toast.success("Project workspace scanned and mapped successfully.");
     } catch (err) {
       const message =

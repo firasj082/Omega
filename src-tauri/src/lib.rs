@@ -1,6 +1,7 @@
 mod commands;
 
 use commands::detector::{detect_project, expand_tree_node, read_rule_file_content};
+use commands::file_map::generate_file_map;
 use commands::writer::{write_file, read_rule_file, write_rule_files};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,7 +15,8 @@ pub fn run() {
             read_rule_file,
             write_rule_files,
             expand_tree_node,
-            read_rule_file_content
+            read_rule_file_content,
+            generate_file_map
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

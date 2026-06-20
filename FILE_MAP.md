@@ -27,7 +27,7 @@
 ### src/
 - `App.tsx` [component]
 - `index.css` [style]
-- `main.tsx` [entry]
+- `main.tsx` [entry] [component]
 - `vite-env.d.ts` [types]
 
 #### src/components/
@@ -71,7 +71,7 @@
 - `textarea.tsx` [component]
 
 #### src/context/
-- `TreeContext.tsx` [state]
+- `TreeContext.tsx` [component] [state]
 
 #### src/lib/
 - `utils.ts` [util]
@@ -87,7 +87,7 @@
 
 #### src/templates/
 - `go.ts` [template]
-- `index.ts` [template]
+- `index.ts` [entry] [template]
 - `nextjs.ts` [template]
 - `node-express.ts` [template]
 - `python-fastapi.ts` [template]
@@ -98,7 +98,7 @@
 - `vue.ts` [template]
 
 #### src/types/
-- `index.ts` [types]
+- `index.ts` [entry] [types]
 
 #### src/utils/
 - `detector.ts` [util]
@@ -110,36 +110,36 @@
 - `claudeWriter.ts` [util]
 - `clineWriter.ts` [util]
 - `cursorWriter.ts` [util]
-- `index.ts` [util]
+- `index.ts` [entry] [util]
 - `mapHelper.ts` [util]
 
 ### src-tauri/
 - `.gitignore` [config]
-- `build.rs` [config]
+- `build.rs`
 - `Cargo.lock`
 - `Cargo.toml` [config]
 - `CLAUDE_MAP.md`
-- `tauri.conf.json` [config]
+- `tauri.conf.json`
 
 #### src-tauri/capabilities/
-- `default.json` [config]
+- `default.json`
 
 #### src-tauri/gen/
 
 ##### src-tauri/gen/schemas/
-- `acl-manifests.json` [schema]
-- `capabilities.json` [schema]
-- `desktop-schema.json` [schema]
-- `windows-schema.json` [schema]
+- `acl-manifests.json`
+- `capabilities.json`
+- `desktop-schema.json`
+- `windows-schema.json`
 
 #### src-tauri/src/
 - `lib.rs` [entry]
 - `main.rs` [entry]
 
 ##### src-tauri/src/commands/
-- `detector.rs` [tauri-command]
-- `file_map.rs` [tauri-command]
-- `mod.rs` [tauri-command]
-- `writer.rs` [tauri-command]
+- `detector.rs`
+- `file_map.rs`
+- `mod.rs`
+- `writer.rs`
 
 > 90 files mapped across 23 directories.

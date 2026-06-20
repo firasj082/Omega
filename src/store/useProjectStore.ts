@@ -85,11 +85,26 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   setEditorBlocks: (blocks) => {
     const ordered = recalculateOrder(blocks);
     set((state) => {
+      const mapFile = OUTPUT_CONFIGS[state.outputTarget].mapFile;
+      const hasMapRef = ordered.some(
+        (b) => b.content.includes(mapFile) || b.title.toLowerCase().includes("map")
+      );
+      let finalBlocks = [...ordered];
+      if (!hasMapRef) {
+        finalBlocks.push({
+          id: generateId(),
+          type: "section",
+          title: "Routing Map Reference",
+          content: `Always consult the project directory routing map in ${mapFile} before creating, renaming, or refactoring files to maintain codebase layout consistency.`,
+          order: finalBlocks.length,
+        });
+      }
+
       let nextSession = state.editorSession;
       if (nextSession) {
-        nextSession = { ...nextSession, blocks: ordered };
+        nextSession = { ...nextSession, blocks: finalBlocks };
       }
-      return { editorBlocks: ordered, editorSession: nextSession };
+      return { editorBlocks: finalBlocks, editorSession: nextSession };
     });
   },
 

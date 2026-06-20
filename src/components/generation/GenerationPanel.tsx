@@ -2,9 +2,9 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useProjectStore } from "@/store/useProjectStore";
 import { useLoadoutStore } from "@/store/useLoadoutStore";
-import { useTree } from "@/context/TreeContext";
-import { renderRules, renderMap } from "@/writers";
+import { renderRules } from "@/writers";
 import { buildGenerationPlan } from "@/utils/generation";
+import { generateFileMap } from "@/utils/detector";
 import { ReviewModal } from "./ReviewModal";
 import type { GenerationEntry, OutputTarget } from "@/types";
 import { OUTPUT_CONFIGS } from "@/types";
@@ -33,7 +33,6 @@ function inferTargetFromFilename(filename: string): string {
 export function GenerationPanel() {
   const { subProjects } = useProjectStore();
   const loadouts = useLoadoutStore((s) => s.loadouts);
-  const { getNode } = useTree();
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -78,7 +77,6 @@ export function GenerationPanel() {
         entries.map(async (entry) => {
           const loadout = loadouts.find((l) => l.id === entry.loadoutId);
           const sp = subProjects.find((p) => p.id === entry.subProjectId);
-          const node = sp ? getNode(sp.absolutePath) : null;
 
           const rulesFile = OUTPUT_CONFIGS[entry.outputTarget].rulesFile;
           const mapFile = OUTPUT_CONFIGS[entry.outputTarget].mapFile;
@@ -121,16 +119,16 @@ export function GenerationPanel() {
             // Merge template blocks
             templateBlocks.forEach((b) => {
               const exists = mergedBlocks.some(
-                (ex) => ex.title.trim().toLowerCase() === b.title.trim().toLowerCase()
+                (ex) => (ex.title || "").trim().toLowerCase() === (b.title || "").trim().toLowerCase()
               );
-              if (!exists && b.title.trim() !== "") {
+              if (!exists && (b.title || "").trim() !== "") {
                 mergedBlocks.push({ ...b, id: generateId(), order: mergedBlocks.length });
               }
             });
 
             // Auto-inject routing map rule if missing
             const hasMapRef = mergedBlocks.some(
-              (b) => b.content.includes(mapFile) || b.title.toLowerCase().includes("map")
+              (b) => (b.content || "").includes(mapFile) || (b.title || "").toLowerCase().includes("map")
             );
             if (!hasMapRef) {
               mergedBlocks.push({
@@ -146,7 +144,7 @@ export function GenerationPanel() {
           } else {
             const mergedBlocks = [...templateBlocks];
             const hasMapRef = mergedBlocks.some(
-              (b) => b.content.includes(mapFile) || b.title.toLowerCase().includes("map")
+              (b) => (b.content || "").includes(mapFile) || (b.title || "").toLowerCase().includes("map")
             );
             if (!hasMapRef) {
               mergedBlocks.push({
@@ -159,9 +157,15 @@ export function GenerationPanel() {
             }
             rulesContent = renderRules(entry.outputTarget, mergedBlocks, entry.subProjectName, mapFile);
           }
-
-          // Generate map file upfront
-          const mapContent = (sp && node) ? renderMap(entry.outputTarget, sp, node, rulesFile) : "";
+          // Generate map file via Rust full-recursive scan
+          let mapContent = "";
+          if (sp) {
+            try {
+              mapContent = await generateFileMap(sp.absolutePath);
+            } catch (mapErr) {
+              toast.error(`Map generation failed for ${entry.subProjectName}: ${mapErr}`);
+            }
+          }
 
           return {
             ...entry,

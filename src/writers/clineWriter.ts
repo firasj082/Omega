@@ -12,14 +12,16 @@ export function renderClineRules(
 
   const rulesContent = sorted
     .map((block) => {
-      if (block.type === "freeform") return block.content.trim();
+      const content = block.content || "";
+      const title = block.title || "";
+      if (block.type === "freeform") return content.trim();
       if (block.type === "ignore-patterns") {
-        return `## ${block.title}\n\n\`\`\`\n${block.content.trim()}\n\`\`\``;
+        return `## ${title}\n\n\`\`\`\n${content.trim()}\n\`\`\``;
       }
       if (block.type === "file-structure") {
-        return `## ${block.title}\n\n\`\`\`\n${block.content.trim()}\n\`\`\``;
+        return `## ${title}\n\n\`\`\`\n${content.trim()}\n\`\`\``;
       }
-      return `## ${block.title}\n\n${block.content.trim()}`;
+      return `## ${title}\n\n${content.trim()}`;
     })
     .join("\n\n---\n\n");
 
