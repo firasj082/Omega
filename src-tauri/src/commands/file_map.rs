@@ -71,13 +71,15 @@ fn extract_js_description(content: &str) -> Option<String> {
     // Try /** ... */ JSDoc at the top
     if let Some(start) = content.find("/**") {
         if let Some(end) = content[start..].find("*/") {
-            let inner = &content[start + 3..start + end];
-            let first = inner
-                .lines()
-                .map(|l| l.trim().trim_start_matches('*').trim())
-                .find(|l| !l.is_empty() && !l.starts_with('@'))?;
-            if first.len() > 4 {
-                return Some(first.to_string());
+            if end >= 3 {
+                let inner = &content[start + 3..start + end];
+                let first = inner
+                    .lines()
+                    .map(|l| l.trim().trim_start_matches('*').trim())
+                    .find(|l| !l.is_empty() && !l.starts_with('@'))?;
+                if first.len() > 4 {
+                    return Some(first.to_string());
+                }
             }
         }
     }
@@ -959,6 +961,13 @@ mod tests {
         assert_eq!(classifier.classify("tauri.conf.json"), vec!["config"]);
         assert_eq!(classifier.classify("src/commands/detector.rs"), vec!["tauri-command"]);
         assert_eq!(classifier.classify("src/commands/mod.rs"), vec!["tauri-command"]);
+    }
+
+    #[test]
+    fn test_extract_js_description_handles_empty_jsdoc() {
+        assert_eq!(extract_js_description("/***/"), None);
+        assert_eq!(extract_js_description("/** */"), None);
+        assert_eq!(extract_js_description("/**\n * My description\n */"), Some("My description".to_string()));
     }
 
     #[test]
